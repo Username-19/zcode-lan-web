@@ -1,37 +1,42 @@
-# ZCode LAN Web Variant (v3.14.3 + LAN deployment patches)
+# Patches vs upstream v3.14.3
 
-A self-hosting-oriented variant of [zai-org/ZCode](https://github.com/zai-org/ZCode) v3.14.3, patched so that the open-source `zcode --web` server runs reliably on a **Windows LAN machine** and the web client behaves like a full daily driver.
+[简体中文](README.VARIANT.zh-CN.md) | English
 
-> Upstream status (v3.14.3): all fixes below are still required for a LAN web deployment — upstream disables GitHub Issues, so these changes are published here.
+This fork only carries fixes required to run `zcode --web` on a Windows LAN machine. Each fix: symptom → root cause → change. All verified on `v3.14.3`.
 
-## What this variant changes (vs upstream v3.14.3)
+## 1. PDF preview broken: served `.mjs` worker as `application/octet-stream`
 
-| # | Fix | Why | File(s) |
-|---|-----|-----|---------|
-| 1 | `.mjs` added to static MIME table (+ mp4/webm/mp3/m4a) | `pdf.worker.min-*.mjs` was served as `application/octet-stream`; Chromium rejects Worker scripts with that MIME → pdf.js collapsed to fake worker and PDF preview always failed | `packages/server/src/http.ts` |
-| 2 | pdf.js `workerSrc` versioned (`?v=2`) | Worker asset is `immutable`-cached for a year; browsers that cached the bad-MIME response stay broken even after fix #1 — the version bump busts the poisoned cache | `packages/ui/src/components/ui/pdf-viewer.tsx` |
-| 3 | Inline-code file paths become clickable file citations | Models often emit paths wrapped in backticks instead of `:zcode-file-citation` directives; the remark plugin skipped `inlineCode` nodes. Now a bare path (path separator + 33-extension allowlist) projects to a clickable file reference — works in main chat and selection side chat | `packages/ui/src/lib/zcodeFileCitationRemarkPlugin.ts` |
-| 4 | Web fallback for task lists | Sidebar grouped/pinned/archived lists only read the `WindowHostController` channel, which is desktop-Host-only; on web they silently rendered empty ("no archived tasks"). When the controller call fails or times out (8s), the hook now falls back to direct `zcodeTaskService.listArchivedTasks/listPinnedTasks/listTasks` per workspace scope. Unsupported kinds (`timeline`) throw to keep the last list instead of wiping it; fallback timers are cleared | `packages/ui/src/hooks/useGlobalTaskList.ts` |
-| 5 | Grouped sticky header: data channel instead of ReactNode | The sticky-group-header effect pushed a fresh `<StickyGroupHeader/>` element into sidebar state on every run (2 forced re-renders per run, element never `Object.is`-equal) — once real task rows appeared on web this spun into React error #185 (max update depth). The channel now carries plain data `{groupId, collapsed, tooltipsDisabled, node, callbacks}` and the sidebar renders the element itself; deps trimmed to 4 stable items | `packages/ui/src/WorkspaceGroupedTasksSection.tsx`, `packages/ui/src/WorkspaceSidebar.tsx`, `packages/ui/src/workspace-grouped-tasks/sticky-group-header-slot.tsx` |
-| 6 | Code-block theme follows the UI, not the OS | Side chat panes that miss the host theme fall back to `"system"` → `matchMedia(OS)`; on a light OS + dark UI this resolved a light code theme → near-invisible text. `"system"` now reads `<html>`'s applied `dark` class | `packages/ui/src/components/ai-elements/message.tsx` |
-| 7 | Attachment checksum fallback for HTTP origins | `crypto.subtle` is undefined on insecure origins (e.g. `http://<lan-ip>:3030`), so attachment upload always threw `fault.attachment.checksumUnavailable`. Added a pure-JS SHA-256 fallback (verified against `node:crypto`) | `packages/ui/src/v4/attachmentUploadTransaction.ts` |
+`packages/server/src/http.ts` — the static MIME table has no `.mjs` entry. `pdf.worker.min-*.mjs` is served with `application/octet-stream`; Chromium refuses Worker scripts with that MIME, pdf.js degrades to a fake worker and `getDocument` fails — every PDF preview shows "unavailable".
 
-## Build notes (Windows)
+Fix: add `.mjs: text/javascript; charset=utf-8` (plus mp4/webm/mp3/m4a).
 
-Upstream v3.14.3 build issues on Windows, also fixed/pinned here in practice:
+## 2. PDF preview still broken after #1: poisoned immutable cache
 
-- `scripts/build-zcode.mjs` uses `spawnSync("pnpm")` → `ENOENT` on Windows (`.cmd` not resolvable without shell). Work around by running the filter builds manually, then `node scripts/build-zcode.mjs --skip-build`.
-- `packages/shared` ships no `build` script but the pack step needs `packages/shared/dist/index.js` → run `pnpm exec tsc` inside `packages/shared` once.
-- The final tar step fails when GNU tar receives a `C:\...` path (parses `C:` as a host). Use relative paths.
-- `ELECTRON_SKIP_BINARY_DOWNLOAD=1 pnpm install` avoids the blocked Electron binary download; desktop is not needed for web deployment.
+`packages/ui/src/components/ui/pdf-viewer.tsx` — the worker asset is served with `Cache-Control: immutable, max-age=1y`. Browsers that cached the bad-MIME response keep failing after the server is fixed. Fix: append `?v=2` to `workerSrc` to bust the cache.
 
-Deploy shape that this variant was validated on: `node zcode/bin/zcode.mjs --web --host 0.0.0.0 --port 3030 --token <token>` on Windows, launched detached (WMI `Win32_Process.Create` — SSH-spawned children get reaped on session close), reading the same `~/.zcode` session store as the closed desktop build.
+## 3. File paths in backticks are dead text
 
-## Not included
+`packages/ui/src/lib/zcodeFileCitationRemarkPlugin.ts` — clickable file links are only created from explicit `:zcode-file-citation{path="..."}` directives; `SKIPPED_PARENT_TYPES` includes `inlineCode`, and models frequently emit paths as inline code. Fix: an `inlineCode` node whose whole value is path-shaped (has a path separator, extension in a 33-entry allowlist, ≤512 chars) is projected to a link node. Code blocks and command snippets are untouched (they contain spaces/quotes and fail the shape check).
 
-- No secrets/keys (checked). Runtime config lives in `~/.zcode` outside this repo.
-- Desktop/Electron build assets are not prebuilt here.
+## 4. Web sidebar/archive lists are always empty
 
-## License
+`packages/ui/src/hooks/useGlobalTaskList.ts` — grouped/pinned/archived lists read the `WindowHostController` channel, which only the desktop host implements. On web the channel call fails fast and the hook keeps an empty list. Fix: on controller failure or 8s timeout, fall back to direct `zcodeTaskService.listArchivedTasks/listPinnedTasks/listTasks` per workspace scope. Unsupported kinds (`timeline`) throw so the last list is preserved, and fallback timers are cleared in `finally`.
 
-Apache-2.0, same as upstream.
+## 5. React #185 (max update depth) once real task rows render on web
+
+`packages/ui/src/WorkspaceGroupedTasksSection.tsx` + `WorkspaceSidebar.tsx` — the grouped-sticky-header effect pushed a freshly-created `<StickyGroupHeader/>` element into sidebar state on every run (2 forced re-renders per run; a new element is never `Object.is`-equal). With empty lists this never ran; once #4 populated real rows it spun past React's nested-update limit. Fix: the effect now reports plain data `{groupId, collapsed, tooltipsDisabled, node, callbacks}` and the sidebar renders the element itself — setState bails when data is unchanged. Effect deps trimmed from 9 (5 unstable callback identities) to 4 stable ones.
+
+## 6. Code blocks render near-invisible in panes that miss the host theme
+
+`packages/ui/src/components/ai-elements/message.tsx` — panes without a host theme fall back to `"system"`, which resolved via `matchMedia(OS)`. Light OS + dark UI → light code theme on a dark background. Fix: the `"system"` branch reads `<html>`'s applied `dark` class instead.
+
+## 7. Attachment upload fails on HTTP origins
+
+`packages/ui/src/v4/attachmentUploadTransaction.ts` — `crypto.subtle` is undefined on insecure origins (`http://<lan-ip>:3030`), so the SHA-256 checksum threw `fault.attachment.checksumUnavailable` on every upload. Fix: pure-JS SHA-256 fallback (verified against `node:crypto`), WebCrypto still preferred when available.
+
+## Windows build notes
+
+- `scripts/build-zcode.mjs` uses `spawnSync("pnpm")` → `ENOENT` on Windows. Workaround: run filter builds manually, then `--skip-build`.
+- `packages/shared` has no build script but packaging needs `dist/index.js` → `pnpm exec tsc` inside it once.
+- The final tar step breaks on `C:\...` paths (GNU tar parses `C:` as a host). Use relative paths.
+- `ELECTRON_SKIP_BINARY_DOWNLOAD=1 pnpm install` for headless/web-only builds.
