@@ -15,6 +15,8 @@
 
 ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
 
+> **局域网网页部署变体**:本仓库附带一组网页端缺陷修复(PDF 预览、侧栏任务列表、行内文件路径链接等 7 项),详见 **[变体说明(中文)](README.VARIANT.zh-CN.md)** / [Variant notes (English)](README.VARIANT.md)。
+
 ## 更新
 
 - 2026-9-23：更新至 ZCode v3.14.3 版本。
