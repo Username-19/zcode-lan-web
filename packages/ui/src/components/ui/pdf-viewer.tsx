@@ -13,7 +13,9 @@ import * as pdfZoom from "@/components/ui/usePdfZoomOverlay.js";
 import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
 import { createPdfJsDocumentOptions } from "@/lib/pdfJsAssets.js";
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+// worker 资产曾被静态服务器以 application/octet-stream 下发并被浏览器以 immutable
+// 长缓存;MIME 表修复后旧缓存条目仍在,必须换 URL(workerSrc 加版本参数)绕开毒缓存。
+pdfjs.GlobalWorkerOptions.workerSrc = `${pdfWorkerSrc}?v=2`;
 
 // 与 service 层 readFileRange 的默认分段大小对齐，一次 range 请求对应一次 RPC 调用。
 const RANGE_CHUNK_BYTES = 256 * 1024;

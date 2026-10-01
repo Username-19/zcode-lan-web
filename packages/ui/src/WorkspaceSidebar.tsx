@@ -117,7 +117,11 @@ import { WorkspaceSidebarFooter } from "@/WorkspaceSidebarFooter.js";
 import { WorkspacePinnedTasksSection } from "@/WorkspacePinnedTasksSection.js";
 import { WorkspaceTimelineTasksSection } from "@/WorkspaceTimelineTasksSection.js";
 import { WorkspaceGroupedTasksSection } from "@/WorkspaceGroupedTasksSection.js";
-import { StickyGroupHeaderSlot } from "@/workspace-grouped-tasks/sticky-group-header-slot.js";
+import { StickyGroupHeader } from "@/workspace-grouped-tasks/sticky-group-header.js";
+import {
+  StickyGroupHeaderSlot,
+  type GroupedStickyHeaderData,
+} from "@/workspace-grouped-tasks/sticky-group-header-slot.js";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import {
   SortableWorkspaceSidebarItem,
@@ -389,7 +393,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   );
   const [isFileTreeOpen, setIsFileTreeOpen] = useState(false);
   const [fileTreeTarget, setFileTreeTarget] = useState<SidebarFileTreeTarget | null>(null);
-  const [groupedStickyHeader, setGroupedStickyHeader] = useState<ReactNode | null>(null);
+  const [groupedStickyHeader, setGroupedStickyHeader] = useState<GroupedStickyHeaderData | null>(
+    null,
+  );
   const [taskOrganizeBy, setTaskOrganizeBy] = useState<TaskOrganizeBy>(
     () => readSidebarTaskPreferences().organizeBy,
   );
@@ -1349,7 +1355,22 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
           </div>
 
           <div className="relative flex min-h-0 flex-1 flex-col">
-            <StickyGroupHeaderSlot header={groupedStickyHeader} />
+            {/* grouped 区块的 effect 只上报数据，吸顶头在渲染期组装，避免跨组件传 ReactNode。 */}
+            <StickyGroupHeaderSlot
+              header={
+                groupedStickyHeader ? (
+                  <StickyGroupHeader
+                    node={groupedStickyHeader.node}
+                    collapsed={groupedStickyHeader.collapsed}
+                    tooltipsDisabled={groupedStickyHeader.tooltipsDisabled}
+                    onCreateTask={groupedStickyHeader.onCreateTask}
+                    onToggleCollapsed={groupedStickyHeader.onToggleCollapsed}
+                    onUpdateGroupColor={groupedStickyHeader.onUpdateGroupColor}
+                    onUngroupGroup={groupedStickyHeader.onUngroupGroup}
+                  />
+                ) : null
+              }
+            />
             <div
               ref={workspaceScrollRef}
               className={

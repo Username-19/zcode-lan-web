@@ -42,6 +42,9 @@ export function useGlobalTaskList(params: {
   collapsedLimit: number;
 }) {
   const baseServices = useBaseWorkspaceServices();
+  // 经 ref 透传 baseServices,避免其身份变化重建 load、导致 effect 反复重查。
+  const baseServicesRef = useRef(baseServices);
+  baseServicesRef.current = baseServices;
   const controller = baseServices.windowControllerService;
   const controllerRegistry = useMemo(
     () => (controller ? getWindowControllerTaskListRegistry(controller) : null),
@@ -140,15 +143,92 @@ export function useGlobalTaskList(params: {
         setLoading(false);
         return;
       }
-      if (!controllerRegistry) {
-        // 原子切换后 base attachment 必须提供 Controller；缺失代表 Host/Renderer 版本不一致。
-        logger.error("[useGlobalTaskList] window Host Controller channel unavailable");
-        setLoading(false);
-        return;
-      }
       setLoading(true);
+      // Web 部署没有 WindowHostController 通道(桌面 Host 专属实现,描述符对象恒为真值,
+      // registry.list 要么快速失败要么挂起)。Controller 查询失败或超时(8s)时降级为按
+      // scope 直连 zcodeTaskService 拉取;桌面路径不受影响。
+      // 收集 withTimeout 创建的定时器句柄,在 finally 中统一 clearTimeout,避免定时器泄漏。
+      const timeoutTimerIds = new Set<ReturnType<typeof setTimeout>>();
+      const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
+        Promise.race([
+          promise,
+          new Promise<T>((_, reject) => {
+            const timerId = setTimeout(
+              () => reject(new Error("task list controller timeout")),
+              ms,
+            );
+            timeoutTimerIds.add(timerId);
+          }),
+        ]);
       try {
-        const result = await controllerRegistry.list(queryKey, version, query);
+        let result: {
+          items: GlobalTaskListItem[];
+          total: number;
+          hasMore: boolean;
+        } | null = null;
+        if (controllerRegistry) {
+          try {
+            const controllerResult = await withTimeout(
+              controllerRegistry.list(queryKey, version, query),
+              8_000,
+            );
+            if (requestSerialRef.current !== requestSerial) {
+              return;
+            }
+            result = controllerResult;
+          } catch (controllerError) {
+            if (requestSerialRef.current !== requestSerial) {
+              return;
+            }
+            logger.warn(
+              `[useGlobalTaskList] Controller 加载 ${params.kind} 列表失败,降级直连 task 服务`,
+              controllerError,
+            );
+          }
+        }
+        if (!result) {
+          const service = baseServicesRef.current.zcodeTaskService;
+          const collected: GlobalTaskListItem[] = [];
+          for (const scope of workspaceScopes) {
+            const scopeParams = {
+              workspacePath: scope.workspacePath,
+              ...(scope.workspaceIdentity
+                ? { workspaceIdentity: scope.workspaceIdentity }
+                : {}),
+            };
+            if (params.kind === "archived") {
+              const metas = await withTimeout(service.listArchivedTasks(scopeParams), 12_000);
+              for (const meta of metas) {
+                collected.push({ ...meta, sourceAvailability: "online", liveStatus: "idle" });
+              }
+            } else if (params.kind === "pinned") {
+              const metas = await withTimeout(service.listPinnedTasks(scopeParams), 12_000);
+              for (const meta of metas) {
+                collected.push({ ...meta, sourceAvailability: "online", liveStatus: "idle" });
+              }
+            } else if (params.kind === "active") {
+              const metas = await withTimeout(service.listTasks(scopeParams), 12_000);
+              for (const meta of metas) {
+                collected.push({ ...meta, sourceAvailability: "online", liveStatus: "idle" });
+              }
+            } else {
+              // timeline 走专用搜索聚合,不在本降级范围内;抛错交由外层 catch 保留最后列表
+              throw new Error(`[useGlobalTaskList] 降级路径不支持 ${params.kind} 列表`);
+            }
+            if (requestSerialRef.current !== requestSerial) {
+              return;
+            }
+          }
+          collected.sort((left, right) =>
+            params.sortBy === "updated"
+              ? right.updatedAt - left.updatedAt || right.createdAt - left.createdAt
+              : right.createdAt - left.createdAt,
+          );
+          const total = collected.length;
+          const limited =
+            query.limit !== undefined ? collected.slice(0, query.limit) : collected;
+          result = { items: limited, total, hasMore: collected.length > limited.length };
+        }
         if (requestSerialRef.current !== requestSerial) {
           return;
         }
@@ -168,12 +248,16 @@ export function useGlobalTaskList(params: {
         setHasMore(result.hasMore);
       } catch (error) {
         if (requestSerialRef.current === requestSerial) {
-          // Controller 查询失败时保留最后可信列表，避免单 source 异常清空其他 workspace。
-          logger.error(`[useGlobalTaskList] Controller 加载 ${params.kind} 列表失败`, error);
+          // Controller/降级查询失败时保留最后可信列表，避免单 source 异常清空其他 workspace。
+          logger.error(`[useGlobalTaskList] 加载 ${params.kind} 列表失败`, error);
         }
       } finally {
         if (requestSerialRef.current === requestSerial) {
           setLoading(false);
+        }
+        // 无论成功、失败还是串号返回,都清除本次 load 尚未触发的超时定时器。
+        for (const timerId of timeoutTimerIds) {
+          clearTimeout(timerId);
         }
       }
     },

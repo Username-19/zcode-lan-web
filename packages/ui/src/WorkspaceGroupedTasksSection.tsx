@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- 顶层 grouped task 容器仍集中维护远程 workspace service 解析、group 菜单、task 菜单和列表写回；子行与纯 helper 已拆到 workspace-grouped-tasks 目录。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   closestCenter,
   DndContext,
@@ -42,7 +42,7 @@ import { GroupItem, GroupedTaskItem } from "@/workspace-grouped-tasks/items.js";
 import { GroupDragOverlay } from "@/workspace-grouped-tasks/group-drag-overlay.js";
 import { VirtualizedGroupedTopLevelList } from "@/workspace-grouped-tasks/virtualized-top-level-list.js";
 import { GroupedDraftTaskRow } from "@/workspace-grouped-tasks/draft-task-row.js";
-import { StickyGroupHeader } from "@/workspace-grouped-tasks/sticky-group-header.js";
+import type { GroupedStickyHeaderData } from "@/workspace-grouped-tasks/sticky-group-header-slot.js";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import {
   findTaskInGroupedView,
@@ -551,7 +551,7 @@ export function WorkspaceGroupedTasksSection({
   collapsedGroupIds: ReadonlySet<string>;
   onGroupedTaskGroupIdsChange?: (groupIds: string[]) => void;
   onCollapsedGroupIdsChange: (updater: (currentGroupIds: Set<string>) => Set<string>) => void;
-  onStickyGroupHeaderChange?: (node: ReactNode | null) => void;
+  onStickyGroupHeaderChange?: (header: GroupedStickyHeaderData | null) => void;
   /** 闲时系统分组的「+」/右键新建路由到 Automations 主视图。 */
   onOpenAutomations?: () => void;
 }) {
@@ -1489,33 +1489,26 @@ export function WorkspaceGroupedTasksSection({
       onStickyGroupHeaderChange(null);
       return () => onStickyGroupHeaderChange(null);
     }
-    onStickyGroupHeaderChange(
-      <StickyGroupHeader
-        node={stickyGroupNode}
-        collapsed={collapsedGroupIds.has(stickyGroupNode.group.id)}
-        tooltipsDisabled={groupedTooltipsDisabled}
-        onCreateTask={() =>
-          stickyGroupNode.group.id === OFF_PEAK_DEFAULT_GROUP_ID
-            ? onOpenAutomations?.()
-            : handleCreateGroupDraftTask(stickyGroupNode.group.id)
-        }
-        onToggleCollapsed={handleToggleGroupCollapsed}
-        onUpdateGroupColor={handleUpdateGroupColor}
-        onUngroupGroup={handleUngroupGroup}
-      />,
-    );
+    // 吸顶通道只上报数据 + 稳定引用（node 来自 useMemo 的 view，回调是 useCallback 产物），
+    // 由 WorkspaceSidebar 渲染期组装 <StickyGroupHeader/>。不再把新建的 ReactNode 推进父层
+    // state——那会让 effect 每次运行都强制父级刷新两次，且回调身份变化又重跑本 effect，
+    // 形成 React error #185 的嵌套更新循环。
+    onStickyGroupHeaderChange({
+      groupId: stickyGroupNode.group.id,
+      collapsed: collapsedGroupIds.has(stickyGroupNode.group.id),
+      tooltipsDisabled: groupedTooltipsDisabled,
+      node: stickyGroupNode,
+      onCreateTask: () =>
+        stickyGroupNode.group.id === OFF_PEAK_DEFAULT_GROUP_ID
+          ? onOpenAutomations?.()
+          : handleCreateGroupDraftTask(stickyGroupNode.group.id),
+      onToggleCollapsed: handleToggleGroupCollapsed,
+      onUpdateGroupColor: handleUpdateGroupColor,
+      onUngroupGroup: handleUngroupGroup,
+    });
     return () => onStickyGroupHeaderChange(null);
-  }, [
-    collapsedGroupIds,
-    groupedTooltipsDisabled,
-    handleCreateGroupDraftTask,
-    onOpenAutomations,
-    handleToggleGroupCollapsed,
-    handleUngroupGroup,
-    handleUpdateGroupColor,
-    onStickyGroupHeaderChange,
-    stickyGroupNode,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 动作回调仅随 payload 透传，纳入依赖会复现 max update depth 循环。
+  }, [collapsedGroupIds, groupedTooltipsDisabled, onStickyGroupHeaderChange, stickyGroupNode]);
 
   const renderTopLevelNode = useCallback(
     (node: ZCodeGroupedTaskView["nodes"][number]) =>

@@ -843,8 +843,11 @@ function resolveMessageCodeTheme(
   theme: Theme,
   codePreviewSettings: { lightTheme: BundledTheme; darkTheme: BundledTheme },
 ): BundledTheme {
-  if (theme === "system" && typeof window !== "undefined") {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
+  // “跟随界面”语义以 <html> 实际应用的 dark 类为准，而不是 OS 的 matchMedia：
+  // 辅助对话等子面板可能拿不到宿主 theme（回落 "system"），OS 浅色 + 界面深色时
+  // 会解析出 light 代码主题，在暗背景上渲染出近同色文字（划选 ::selection 才可见）。
+  if (theme === "system") {
+    return typeof document !== "undefined" && document.documentElement.classList.contains("dark")
       ? codePreviewSettings.darkTheme
       : codePreviewSettings.lightTheme;
   }

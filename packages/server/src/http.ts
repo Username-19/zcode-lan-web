@@ -194,8 +194,15 @@ const staticMimeTypes: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".js": "text/javascript; charset=utf-8",
+  // .mjs 必须显式映射:Chromium 对 Worker 脚本强制 MIME 校验,octet-stream 会让
+  // pdf.js 等 module worker 加载失败并退化为 fake worker,进而 PDF 文档渲染失败。
+  ".mjs": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".map": "application/json; charset=utf-8",
+  ".mp3": "audio/mpeg",
+  ".mp4": "video/mp4",
+  ".m4a": "audio/mp4",
+  ".webm": "video/webm",
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".txt": "text/plain; charset=utf-8",
