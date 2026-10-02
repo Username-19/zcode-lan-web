@@ -30,6 +30,11 @@ import {
 } from "./share/conversationShareRoute.js";
 import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@zcode/shared";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
+import { installInsecureOriginClipboardPolyfill } from "./insecureOriginClipboard.js";
+
+// 必须在任何 UI 代码执行前注入:非安全源(HTTP 局域网)没有 navigator.clipboard,
+// 不装 polyfill 则所有复制按钮(表格/代码块/路径…)报 clipboard-unavailable。
+installInsecureOriginClipboardPolyfill();
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
   const saved = localStorage.getItem("zcode-theme");

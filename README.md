@@ -12,8 +12,9 @@
 6. **子面板代码块近同色隐形**:`"system"` 主题误用操作系统 matchMedia 解析 → 改读 `<html>` dark 类(`packages/ui/src/components/ai-elements/message.tsx`)
 7. **HTTP 源附件上传必失败**:非安全源无 `crypto.subtle` → 纯 JS SHA-256 兜底(`packages/ui/src/v4/attachmentUploadTransaction.ts`)
 8. **MD 预览相对图片全裂**:相对图片一律按 workspace 根解析,嵌套目录 md 引用同级 `img/` 全部指向不存在路径;rehype-harden 又把相对 src 归一成 `/x` 逃过解析 → 按源文件目录解析并保留 workspace 根候选重试(`packages/ui/src/lib/markdownFileLink.ts` + `markdown-image.tsx` + `message.tsx` + `previewPaneMarkdownContent.tsx`)
+9. **HTTP 源所有复制按钮失效**:非安全源没有 `navigator.clipboard`,表格/代码块等 25 处复制全报 clipboard-unavailable → 入口注入 execCommand 兜底 polyfill,HTTPS/桌面端自动跳过(`packages/web/src/insecureOriginClipboard.ts`)
 
-8 项均已在本机局域网部署日常使用验证。
+9 项均已在本机局域网部署日常使用验证。
 
 ## Web 端固有缺陷(上游/架构限制,本变体未修)
 
@@ -28,7 +29,7 @@
 |---|---|---|
 | 形态 | 浏览器访问,免安装,服务跑在局域网主机 | Electron 安装包,本机运行 |
 | 会话库 | 共享同一 ~/.zcode,可与桌面并存 | 同左 |
-| 上表 8 项缺陷 | 已修复 | 存在(上游未修) |
+| 上表 9 项缺陷 | 已修复 | 存在(上游未修) |
 | 行内路径识别 | 33 种扩展名(含图片/代码) | 仅 PDF/Office/音视频 |
 | 桌面专属能力 | 无(WindowHostController 类通道、手机配对云中继) | 有 |
 | 存活 | 独立进程,关闭桌面应用不影响;仅服务重启中断 | 应用关闭即停 |
