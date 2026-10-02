@@ -364,6 +364,11 @@ export type MessageResponseProps = {
   workspaceHomePath?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
+  /**
+   * 正在渲染的 Markdown 源文件路径（预览面板传入）。相对图片以该文件所在目录为基准解析；
+   * 聊天消息不传，保持 workspace 根语义。
+   */
+  markdownSourceFilePath?: string;
   sessionId?: string;
   readAttachment?: (params: {
     sessionId: string;
@@ -1305,6 +1310,7 @@ export const messageResponsePropsAreEqual = (
   nextProps.workspaceHomePath === prevProps.workspaceHomePath &&
   nextProps.workspaceIdentity === prevProps.workspaceIdentity &&
   nextProps.workspaceRemoteSessionId === prevProps.workspaceRemoteSessionId &&
+  nextProps.markdownSourceFilePath === prevProps.markdownSourceFilePath &&
   nextProps.sessionId === prevProps.sessionId &&
   nextProps.readAttachment === prevProps.readAttachment &&
   nextProps.renderZCodeFileCitations === prevProps.renderZCodeFileCitations &&
@@ -1327,6 +1333,7 @@ export const MessageResponse = memo(
     workspaceHomePath,
     workspaceIdentity,
     workspaceRemoteSessionId,
+    markdownSourceFilePath,
     sessionId,
     readAttachment,
     theme = "system",
@@ -1506,6 +1513,7 @@ export const MessageResponse = memo(
             {...imageProps}
             workspacePath={workspacePath}
             workspaceHomePath={workspaceHomePath}
+            sourceFilePath={markdownSourceFilePath}
             sessionId={sessionId}
             readAttachment={readAttachment}
           />
@@ -1610,6 +1618,7 @@ export const MessageResponse = memo(
         workspacePath,
         workspaceIdentity,
         workspaceRemoteSessionId,
+        markdownSourceFilePath,
       ],
     );
 

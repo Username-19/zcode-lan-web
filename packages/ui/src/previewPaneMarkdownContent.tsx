@@ -55,6 +55,7 @@ export function MarkdownPreviewContent({
         <MessageResponse
           className="min-w-0 break-words"
           workspacePath={workspacePath}
+          markdownSourceFilePath={sourcePath}
           theme={theme}
           codePreviewSettings={codePreviewSettings}
           onOpenExternalUrl={onOpenBrowserUrl}

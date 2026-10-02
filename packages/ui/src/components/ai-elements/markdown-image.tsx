@@ -21,6 +21,7 @@ import { useOptionalServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { isImagePreviewPath } from "@/lib/codeViewer.js";
 import { resolveMarkdownFileLink } from "@/lib/markdownFileLink.js";
+import { getContainingDirectoryPath } from "@/lib/path.js";
 import { logger } from "@/logger.js";
 
 export { clampImagePreviewOffset as clampMarkdownImagePreviewOffset } from "@/components/ai-elements/image-preview-dialog.js";
@@ -29,6 +30,8 @@ export type MarkdownImageProps = ComponentProps<"img"> & {
   node?: unknown;
   workspacePath?: string;
   workspaceHomePath?: string;
+  /** 正在渲染的 Markdown 源文件路径（预览面板传入）：相对图片以该文件所在目录为基准。 */
+  sourceFilePath?: string;
   sessionId?: string;
   readAttachment?: (params: {
     sessionId: string;
@@ -147,6 +150,7 @@ export function MarkdownImage({
   onLoad,
   readAttachment,
   sessionId,
+  sourceFilePath,
   src,
   workspacePath,
   workspaceHomePath,
@@ -156,12 +160,33 @@ export function MarkdownImage({
   const services = useOptionalServices();
   const resolvedSrc = typeof src === "string" ? src : "";
   const artifactRef = useMemo(() => decodeMarkdownArtifactImageSource(resolvedSrc), [resolvedSrc]);
-  const localImageLink = useMemo(() => {
-    const fileLink = resolveMarkdownFileLink(workspacePath, resolvedSrc, {
-      homePath: workspaceHomePath,
-    });
-    return fileLink && isImagePreviewPath(fileLink.path) ? fileLink : null;
-  }, [resolvedSrc, workspaceHomePath, workspacePath]);
+  const sourceDirPath = useMemo(
+    () => (sourceFilePath ? (getContainingDirectoryPath(sourceFilePath) ?? undefined) : undefined),
+    [sourceFilePath],
+  );
+  // Markdown 规范：相对图片以 md 文件所在目录为基准；历史实现一律按 workspace 根解析，
+  // 嵌套目录 md（笔记/子目录/讲解.md 引用 img/x.png）会解析到不存在的路径。
+  // 两组候选按序重试：源目录命中即止，全部失败才报不可用；聊天消息无源文件上下文时
+  // 候选退化为单独的 workspace 根解析，行为与历史一致。
+  const localImageCandidates = useMemo(() => {
+    const candidates: string[] = [];
+    const pushCandidate = (link: { path: string } | null) => {
+      if (link && isImagePreviewPath(link.path) && !candidates.includes(link.path)) {
+        candidates.push(link.path);
+      }
+    };
+    if (sourceDirPath) {
+      pushCandidate(
+        resolveMarkdownFileLink(workspacePath, resolvedSrc, {
+          homePath: workspaceHomePath,
+          sourceDirPath,
+        }),
+      );
+    }
+    pushCandidate(resolveMarkdownFileLink(workspacePath, resolvedSrc, { homePath: workspaceHomePath }));
+    return candidates;
+  }, [resolvedSrc, sourceDirPath, workspaceHomePath, workspacePath]);
+  const localImageLink = localImageCandidates.length > 0 ? localImageCandidates[0] : null;
   const [localImageDataUrl, setLocalImageDataUrl] = useState<string | null>(null);
   const [localImageFailed, setLocalImageFailed] = useState(false);
   const [artifactImageUrl, setArtifactImageUrl] = useState<string | null>(null);
@@ -179,26 +204,30 @@ export function MarkdownImage({
   useEffect(() => {
     setLocalImageDataUrl(null);
     setLocalImageFailed(false);
-    if (!localImageLink || !services) return;
+    if (localImageCandidates.length === 0 || !services) return;
 
     let disposed = false;
-    services.fileService
-      .readMediaPreview({ path: localImageLink.path })
-      .then((preview) => {
-        if (!disposed) setLocalImageDataUrl(formatMediaPreviewDataUrl(preview));
-      })
-      .catch((error) => {
-        if (disposed) return;
-        setLocalImageFailed(true);
-        logger.warn("[MarkdownImage] markdown 本地图片预览失败", {
-          path: localImageLink.path,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      });
+    const loadFirstAvailable = async () => {
+      for (const candidatePath of localImageCandidates) {
+        try {
+          const preview = await services.fileService.readMediaPreview({ path: candidatePath });
+          if (!disposed) setLocalImageDataUrl(formatMediaPreviewDataUrl(preview));
+          return;
+        } catch (error) {
+          if (disposed) return;
+          logger.warn("[MarkdownImage] markdown 本地图片预览失败", {
+            path: candidatePath,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      if (!disposed) setLocalImageFailed(true);
+    };
+    void loadFirstAvailable();
     return () => {
       disposed = true;
     };
-  }, [localImageLink, services]);
+  }, [localImageCandidates, services]);
 
   useEffect(
     () => () => {
@@ -265,7 +294,7 @@ export function MarkdownImage({
         )}
         data-markdown-local-image={failed ? "error" : "loading"}
         role={failed ? "img" : "status"}
-        title={localImageLink?.path}
+        title={localImageLink ?? undefined}
       >
         {failed ? (
           <ImageOffIcon aria-hidden="true" className="size-6" />
@@ -287,7 +316,7 @@ export function MarkdownImage({
         )}
         data-markdown-image-state="error"
         role="img"
-        title={localImageLink?.path}
+        title={localImageLink ?? undefined}
       >
         <ImageOffIcon aria-hidden="true" className="size-6" />
       </div>
@@ -337,7 +366,7 @@ export function MarkdownImage({
         data-image-thumbnail-trigger=""
         data-markdown-image-trigger=""
         onClick={openPreview}
-        title={localImageLink?.path}
+        title={localImageLink ?? undefined}
       >
         {effectiveImageStatus === "loading" ? (
           <span

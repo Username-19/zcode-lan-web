@@ -10,6 +10,11 @@ interface ParsedMarkdownFileLink {
 export interface MarkdownFileLinkResolveOptions {
   /** 当前 workspace Host 报告的用户 Home；Renderer 不自行读取本机 Home。 */
   homePath?: string;
+  /**
+   * 正在渲染的 Markdown 文件所在目录。Markdown 规范里相对链接/图片以文件所在目录为基准；
+   * 缺省时按 workspace 根解析（历史行为，供聊天消息等无源文件上下文的调用点兜底）。
+   */
+  sourceDirPath?: string;
 }
 
 const LINE_AND_COLUMN_SUFFIX_RE = /^(?<path>.+):(?<line>\d+):(?<column>\d+)$/;
@@ -176,6 +181,38 @@ function resolveContainedWorkspaceRelativePath(
   return joinFilePath(workspacePath, normalizedRelativePath.replaceAll("/", separator));
 }
 
+function resolveSourceDirRelativeFilePath(
+  sourceDirPath: string,
+  relativePath: string,
+): string | null {
+  // 相对路径以 Markdown 文件所在目录为基准词法归一；`..` 允许越过源目录
+  // （`../shared/img.png` 是合法引用），但不允许弹出文件系统根。
+  const dirSegments = sourceDirPath
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "")
+    .split("/")
+    .filter(Boolean);
+  if (dirSegments.length === 0) return null;
+
+  // 盘符段（"D:"）不允许被 ".." 弹掉；Unix 根（"/a/b"）允许弹到 0 层。
+  const rootSegmentCount = /^[a-zA-Z]:$/.test(dirSegments[0] ?? "") ? 1 : 0;
+  const segments = [...dirSegments];
+  for (const segment of relativePath.split("/")) {
+    if (!segment || segment === ".") {
+      continue;
+    }
+    if (segment === "..") {
+      if (segments.length <= rootSegmentCount) return null;
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+
+  const resolvedPath = segments.join("/");
+  return isAbsoluteFilePath(resolvedPath) ? resolvedPath : null;
+}
+
 export function parseMarkdownFileLinkTarget(href: string): ParsedMarkdownFileLink {
   // 只在路径归一化阶段解码一次；入口提前 decode 会让 `%2520` 变成 `%20`，
   // 再由 normalizeMarkdownFilePath 解码成空格，破坏文件名中的字面 percent-escape。
@@ -246,6 +283,42 @@ export function resolveMarkdownFileLink(
           path: homePath,
         }
       : null;
+  }
+
+  // Markdown 规范：相对引用（./x、../x、裸文件名）以源文件所在目录为基准；
+  // rehype-harden 会把相对 src/href 归一成单层 "/x"，这里一并按源目录解析。
+  // 仅当调用方显式传入 sourceDirPath 时启用；调用方需自行兜底 workspace 根语义
+  // （如 MarkdownImage 的候选重试），真正的绝对路径仍走后续分支。
+  const sourceDirPath = options.sourceDirPath;
+  if (
+    sourceDirPath &&
+    isAbsoluteFilePath(sourceDirPath) &&
+    !/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(parsedTarget.path) &&
+    !parsedTarget.path.startsWith("#")
+  ) {
+    const hrefPath = parsedTarget.path;
+    const isRootRelativeHref =
+      hrefPath.startsWith("/") &&
+      !hrefPath.startsWith("//") &&
+      !HARDEN_SAFE_WINDOWS_ABSOLUTE_PATH_RE.test(hrefPath) &&
+      !isLikelyUnixAbsoluteFilePath(hrefPath);
+    const sourceDirRelativePath = !isAbsoluteFilePath(hrefPath)
+      ? hrefPath
+      : isRootRelativeHref
+        ? hrefPath.slice(1)
+        : null;
+    if (sourceDirRelativePath !== null) {
+      const sourceDirResolvedPath = resolveSourceDirRelativeFilePath(
+        sourceDirPath,
+        sourceDirRelativePath,
+      );
+      if (sourceDirResolvedPath) {
+        return {
+          ...parsedTarget,
+          path: sourceDirResolvedPath,
+        };
+      }
+    }
   }
 
   if (HARDEN_SAFE_WINDOWS_ABSOLUTE_PATH_RE.test(parsedTarget.path)) {

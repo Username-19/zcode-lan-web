@@ -2,7 +2,7 @@
 
 本仓库拷贝自官方 [zai-org/ZCode](https://github.com/zai-org/ZCode) v3.14.3,用于在 Windows 局域网机器上部署 `zcode --web`;开发、构建、打包等一切文档**详见原仓库 README**。
 
-## 本仓库相对上游的更改(7 项网页端缺陷修复,均已实测)
+## 本仓库相对上游的更改(8 项网页端缺陷修复,均已实测)
 
 1. **PDF 预览必挂**:`.mjs` worker 被按 octet-stream 下发,Chromium 拒收 → MIME 表补 `.mjs`(`packages/server/src/http.ts`)
 2. **修完仍挂**:worker 资源 immutable 缓存一年,坏响应洗不掉 → `workerSrc` 加 `?v=2`(`packages/ui/src/components/ui/pdf-viewer.tsx`)
@@ -11,8 +11,9 @@
 5. **真实任务行渲染后 React #185**:吸顶表头 effect 每轮把新建 React 元素塞进 state → 改传原始数据,侧栏自渲染(`packages/ui/src/WorkspaceGroupedTasksSection.tsx` + `WorkspaceSidebar.tsx`)
 6. **子面板代码块近同色隐形**:`"system"` 主题误用操作系统 matchMedia 解析 → 改读 `<html>` dark 类(`packages/ui/src/components/ai-elements/message.tsx`)
 7. **HTTP 源附件上传必失败**:非安全源无 `crypto.subtle` → 纯 JS SHA-256 兜底(`packages/ui/src/v4/attachmentUploadTransaction.ts`)
+8. **MD 预览相对图片全裂**:相对图片一律按 workspace 根解析,嵌套目录 md 引用同级 `img/` 全部指向不存在路径;rehype-harden 又把相对 src 归一成 `/x` 逃过解析 → 按源文件目录解析并保留 workspace 根候选重试(`packages/ui/src/lib/markdownFileLink.ts` + `markdown-image.tsx` + `message.tsx` + `previewPaneMarkdownContent.tsx`)
 
-7 项均已在本机局域网部署日常使用验证。
+8 项均已在本机局域网部署日常使用验证。
 
 ## Web 端固有缺陷(上游/架构限制,本变体未修)
 
@@ -27,7 +28,7 @@
 |---|---|---|
 | 形态 | 浏览器访问,免安装,服务跑在局域网主机 | Electron 安装包,本机运行 |
 | 会话库 | 共享同一 ~/.zcode,可与桌面并存 | 同左 |
-| 上表 7 项缺陷 | 已修复 | 存在(上游未修) |
+| 上表 8 项缺陷 | 已修复 | 存在(上游未修) |
 | 行内路径识别 | 33 种扩展名(含图片/代码) | 仅 PDF/Office/音视频 |
 | 桌面专属能力 | 无(WindowHostController 类通道、手机配对云中继) | 有 |
 | 存活 | 独立进程,关闭桌面应用不影响;仅服务重启中断 | 应用关闭即停 |
