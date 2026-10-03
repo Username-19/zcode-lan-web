@@ -45,6 +45,7 @@ import { useZCodeStore } from "@/store/StoreProvider.js";
 import { normalizeInterfaceMode } from "@/lib/interfaceMode.js";
 import type { Theme } from "@/useTheme.js";
 import { WorkspaceWebRemoteControlTrigger } from "@/WorkspaceWebRemoteControlTrigger.js";
+import { WorkspaceWebPairingQrButton } from "@/WorkspaceWebPairingQrButton.js";
 import {
   WorkspaceSidebarFooterPlanBadge,
   WorkspaceSidebarFooterUsageSummaryContent,
@@ -377,6 +378,9 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               compact
             />
           ) : null}
+          {/* 网页版同位的手机入口：桌面版上面那个按钮走 Bot/云中继且被 isDesktop
+              门禁挡住；web 端补一个局域网直连扫码按钮，位置与官方一致。 */}
+          {!isDesktop ? <WorkspaceWebPairingQrButton /> : null}
           <ControlHintTooltip title={settingsButtonLabel}>
             <Button
               type="button"

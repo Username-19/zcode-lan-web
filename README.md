@@ -2,7 +2,7 @@
 
 本仓库拷贝自官方 [zai-org/ZCode](https://github.com/zai-org/ZCode) v3.14.3,用于在 Windows 局域网机器上部署 `zcode --web`;开发、构建、打包等一切文档**详见原仓库 README**。
 
-## 本仓库相对上游的更改(8 项网页端缺陷修复,均已实测)
+## 本仓库相对上游的更改(9 项网页端缺陷修复,均已实测)
 
 1. **PDF 预览必挂**:`.mjs` worker 被按 octet-stream 下发,Chromium 拒收 → MIME 表补 `.mjs`(`packages/server/src/http.ts`)
 2. **修完仍挂**:worker 资源 immutable 缓存一年,坏响应洗不掉 → `workerSrc` 加 `?v=2`(`packages/ui/src/components/ui/pdf-viewer.tsx`)
@@ -15,6 +15,10 @@
 9. **HTTP 源所有复制按钮失效**:非安全源没有 `navigator.clipboard`,表格/代码块等 25 处复制全报 clipboard-unavailable → 入口注入 execCommand 兜底 polyfill,HTTPS/桌面端自动跳过(`packages/web/src/insecureOriginClipboard.ts`)
 
 9 项均已在本机局域网部署日常使用验证。
+
+## 新增功能(上游没有的)
+
+- **侧栏手机扫码入口**:桌面版"移动端远程控制"按钮在 web 端的同位平替(账号与设置按钮之间,手机图标)——点击弹出当前页面地址(含 token)的二维码,手机扫码免输入打开网页版;多端连同一会话实时同步(消息/流式输出/打断全端生效,生成中新消息走队列不打断)。手机需与本机同一局域网(`packages/ui/src/WorkspaceWebPairingQrButton.tsx`)
 
 ## Web 端固有缺陷(上游/架构限制,本变体未修)
 

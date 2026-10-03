@@ -1747,6 +1747,12 @@ const enUS: Record<string, string> = {
   "webRemoteControl.botChannel.telegram.description": "Open this workspace from Telegram.",
   "webRemoteControl.botChannel.configure": "Configure in bot channels",
   "webRemoteControl.botChannel.manageBots": "Manage bots",
+  "webRemoteControl.pairing.trigger": "Open on phone",
+  "webRemoteControl.pairing.title": "Open on phone",
+  "webRemoteControl.pairing.description":
+    "Scan the QR code to open this web app on your phone. Both ends share the same session with live sync.",
+  "webRemoteControl.pairing.hint":
+    "Your phone must be on the same LAN (Wi-Fi). The QR code embeds the access token — do not share it. You can also type the address above manually.",
   "remote.title": "Connect remote environment",
   "remote.description":
     "Connect to a remote workspace over SSH, Server, WSL, or Docker, then choose a directory in the current window.",

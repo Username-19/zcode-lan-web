@@ -1627,6 +1627,11 @@ const zhCN: Record<string, string> = {
   "webRemoteControl.botChannel.telegram.description": "从 Telegram 打开这个工作区。",
   "webRemoteControl.botChannel.configure": "去 Bot Channels 配置",
   "webRemoteControl.botChannel.manageBots": "机器人管理",
+  "webRemoteControl.pairing.trigger": "手机扫码访问",
+  "webRemoteControl.pairing.title": "手机扫码访问",
+  "webRemoteControl.pairing.description": "扫描二维码，在手机上打开当前网页版；两端共享同一会话，消息与生成状态实时同步。",
+  "webRemoteControl.pairing.hint":
+    "手机需与本机处于同一局域网（Wi-Fi）。二维码已包含访问令牌，请勿截图外传；无法扫码时也可手动输入上方地址。",
   "remote.title": "连接远程环境",
   "remote.description":
     "通过 SSH、Server、WSL 或 Docker 连接远程工作区，并在当前窗口中继续选择目录。",
