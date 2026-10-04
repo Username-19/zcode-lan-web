@@ -31,6 +31,14 @@ import {
   UI_FONT_SIZE_STORAGE_KEY,
 } from "@/lib/uiFontSize.js";
 import {
+  applyUiPalette,
+  loadUiPalette,
+  UI_PALETTE_STORAGE_KEY,
+  type PaletteConfig,
+  type PaletteMode,
+  type UiPaletteState,
+} from "@/lib/uiPalette.js";
+import {
   isTaskNotificationEnabled,
   isTaskNotificationSoundPreferenceEnabled,
   persistTaskNotificationEnabled,
@@ -119,6 +127,10 @@ export interface ZCodeState {
   /** UI 根 rem 字号（px） */
   uiFontSizePx: number;
   setUiFontSizePx: (fontSizePx: number) => void;
+
+  /** 界面配色（调色盘）：明/暗主题各一套自定义覆盖，null 表示用主题默认 */
+  uiPalette: UiPaletteState;
+  setUiPaletteMode: (mode: PaletteMode, config: PaletteConfig | null) => void;
 
   /** 是否启用性能模式 */
   performanceMode: boolean;
@@ -291,6 +303,16 @@ export function createZCodeStore(
       writeSafeLocalStorage(UI_FONT_SIZE_STORAGE_KEY, String(normalizedFontSizePx));
       applyUiFontSizePx(normalizedFontSizePx);
       set({ uiFontSizePx: normalizedFontSizePx });
+    },
+
+    uiPalette: loadUiPalette(),
+    setUiPaletteMode: (mode, config) => {
+      set((state) => {
+        const next: UiPaletteState = { ...state.uiPalette, [mode]: config };
+        writeSafeLocalStorage(UI_PALETTE_STORAGE_KEY, JSON.stringify(next));
+        applyUiPalette(next);
+        return { uiPalette: next };
+      });
     },
 
     performanceMode: loadPerformanceMode(),
@@ -491,6 +513,7 @@ export function createZCodeStore(
   syncSystemThemeListener(useStore.getState().theme);
   applyTheme(useStore.getState().theme);
   applyUiFontSizePx(useStore.getState().uiFontSizePx);
+  applyUiPalette(useStore.getState().uiPalette);
   document.documentElement.classList.toggle(
     "dark",
     resolveTheme(useStore.getState().theme) === "dark",

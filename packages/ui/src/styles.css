@@ -56,6 +56,9 @@ body,
 
 :root {
   --ui-font-size: 14px;
+  /* 手机端整体放大系数：--ui-font-size 由设置内联写入（内联优先级高于媒体查询），
+   * 通过独立缩放系数在窄视口统一放大整条字号阶梯，不与字号设置打架。 */
+  --ui-font-size-scale: 1;
 }
 
 body {
@@ -140,15 +143,15 @@ body {
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace;
-  --text-ui-xl: calc(var(--ui-font-size) + 4px);
-  --text-ui-lg: calc(var(--ui-font-size) + 2px);
-  --text-ui-base: var(--ui-font-size);
-  --text-ui-caption: calc(var(--ui-font-size) - 1px);
-  --text-ui-sm: calc(var(--ui-font-size) - 2px);
-  --text-ui-xs: calc(var(--ui-font-size) - 4px);
+  --text-ui-xl: calc((var(--ui-font-size) + 4px) * var(--ui-font-size-scale, 1));
+  --text-ui-lg: calc((var(--ui-font-size) + 2px) * var(--ui-font-size-scale, 1));
+  --text-ui-base: calc(var(--ui-font-size) * var(--ui-font-size-scale, 1));
+  --text-ui-caption: calc((var(--ui-font-size) - 1px) * var(--ui-font-size-scale, 1));
+  --text-ui-sm: calc((var(--ui-font-size) - 2px) * var(--ui-font-size-scale, 1));
+  --text-ui-xs: calc((var(--ui-font-size) - 4px) * var(--ui-font-size-scale, 1));
   /* 例外刻度：仅限工作流图轴面（刻度标签、通道码、单位后缀），不得用于内容文本。
    * 见 DESIGN.md「UI font tokens」。 */
-  --text-ui-2xs: calc(var(--ui-font-size) - 5px);
+  --text-ui-2xs: calc((var(--ui-font-size) - 5px) * var(--ui-font-size-scale, 1));
   /* 大写等宽微标签（CAUSALITY GRAPH / TIMEBASE / KEY）在 9-10px 需要加宽字距。 */
   --tracking-wf-label: 0.09em;
   /* iOS Safari 会缩放小于 16px 的聚焦输入；该平台下限不能跟随界面字号降低。 */
@@ -2050,4 +2053,36 @@ body {
 
 .prompt-mention[data-mention-category="plugins"]::before {
   border-radius: var(--radius-sm);
+}
+
+/* ---------------------------------------------------------------------------
+ * 网页端窄视口适配（本变体新增）
+ * 1) ≤768px：左侧栏改为抽屉式覆盖层。原布局是 264px 侧栏 + 320px 主区内联并排，
+ *    conversation < 360px 时还会自动收起（WorkspaceShellLayout 自动折叠策略），
+ *    手机/窄窗口下表现为"侧栏整个消失"。抽屉化后主区始终占满全宽，侧栏悬浮其上，
+ *    显隐沿用左上角既有开关（隐藏态 opacity-0 + pointer-events-none 继续生效）。
+ * 2) ≤640px：字号阶梯整体放大 15%，缓解手机端文字过小。
+ * ------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  [data-workspace-shell="true"] > [data-workspace-sidebar-panel="true"] {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    width: min(84vw, 320px) !important;
+    max-width: none !important;
+    box-shadow: 12px 0 40px rgba(0, 0, 0, 0.35);
+  }
+
+  /* 抽屉模式下侧栏宽度拖拽柄无意义，直接隐藏。 */
+  [data-workspace-shell="true"] > [data-testid="resizable-handle"] {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --ui-font-size-scale: 1.15;
+  }
 }

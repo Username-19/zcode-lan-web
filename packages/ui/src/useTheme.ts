@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { syncUiPaletteForTheme } from "@/lib/uiPalette.js";
 
 export type Theme = "light" | "dark" | "zai-light" | "zai-dark" | "system";
 export type ResolvedTheme = "light" | "dark";
@@ -66,6 +67,8 @@ export function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", resolved === "dark");
   document.documentElement.classList.toggle("theme-zai-light", appliedTheme === "zai-light");
   document.documentElement.classList.toggle("theme-zai-dark", appliedTheme === "zai-dark");
+  // 先按新的明暗重放调色盘内联覆盖，再同步浏览器表面色（meta 读取 computed 变量）。
+  syncUiPaletteForTheme(resolved);
   syncBrowserThemeSurface(resolved);
 }
 
