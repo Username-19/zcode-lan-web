@@ -285,6 +285,28 @@ export function useGlobalTaskList(params: {
     });
   }, [controllerRevision, load, taskListVersionSignature, workspaceSourceGenerationSignature]);
 
+  // Web 降级路径没有 Controller activity 帧可订阅,置顶/归档/改名成功后列表不会重拉
+  // (applyTaskQueryCacheMutation 只更新 React Query 缓存,降级 hook 不读它)。
+  // 订阅变更事件,防抖合并一次动作里的乐观更新+RPC 回写,再重查当前列表。
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    const handleMutation = () => {
+      if (timerId !== null) clearTimeout(timerId);
+      timerId = setTimeout(() => {
+        timerId = null;
+        void refreshRef.current();
+      }, 150);
+    };
+    window.addEventListener("zcode:task-list-mutation", handleMutation);
+    return () => {
+      window.removeEventListener("zcode:task-list-mutation", handleMutation);
+      if (timerId !== null) clearTimeout(timerId);
+    };
+  }, []);
+
   const hasRemoteScope = params.workspaceTabs.some((tab) => Boolean(tab.workspaceIdentity));
   return {
     items,

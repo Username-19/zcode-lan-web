@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- workspace shell 当前集中编排 sidebar、chat、terminal 和 browser pane 的布局联动，先保持单文件收口，避免为满足行数限制打散关键布局状态。*/
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeftIcon } from "lucide-react";
 import type {
   CSSProperties,
   KeyboardEvent as ReactKeyboardEvent,
@@ -403,6 +404,41 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     );
   }, [openWorkspaceKeys]);
   const isSidebarPanelVisible = isSidebarVisible;
+  // —— 窄视口二级导航(本变体新增,对齐官方手机端形态):≤768px 时界面在
+  // "列表页"(侧栏全宽、会话区隐藏)与"对话页"(会话区全宽+返回箭头)间切换,
+  // 复用 isSidebarVisible 作为两页的状态位,桌面/宽窗口行为不变。
+  const [isNarrowViewport, setIsNarrowViewport] = useState(() =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 768px)").matches
+      : false,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+    const mq = window.matchMedia("(max-width: 768px)");
+    const handler = (event: MediaQueryListEvent) => setIsNarrowViewport(event.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  // 列表页把导航守卫重新武装:任何一次任务选择(含重选同一任务)或草稿聚焦
+  // 都切到对话页;对话页期间的选择/聚焦不再重复触发。
+  const narrowNavGuardRef = useRef(false);
+  useEffect(() => {
+    narrowNavGuardRef.current = isNarrowViewport && isSidebarVisible;
+  }, [isNarrowViewport, isSidebarVisible]);
+  useEffect(() => {
+    if (!isNarrowViewport) return;
+    if (!activeTaskId || !narrowNavGuardRef.current) return;
+    narrowNavGuardRef.current = false;
+    handleToggleSidebar();
+  }, [activeTaskId, handleToggleSidebar, isNarrowViewport]);
+  useEffect(() => {
+    if (!isNarrowViewport) return;
+    if (workspaceShellZCodeState.draftFocusVersion <= 0 || !narrowNavGuardRef.current) return;
+    narrowNavGuardRef.current = false;
+    handleToggleSidebar();
+  }, [handleToggleSidebar, isNarrowViewport, workspaceShellZCodeState.draftFocusVersion]);
   const {
     panelRef: terminalPanelRef,
     panelElementRef: terminalPanelElementRef,
@@ -457,6 +493,11 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       conversationPanelElementRef.current?.getBoundingClientRect().width ?? null;
 
     const collapseSidebarIfStillNarrow = () => {
+      // 窄视口二级导航模式自己管理侧栏显隐(列表页 conversation display:none 宽度为 0,
+      // 会误判过窄),不再执行自动收起。
+      if (window.matchMedia("(max-width: 768px)").matches) {
+        return;
+      }
       const widthPx = readConversationWidthPx();
       if (widthPx === null) {
         return;
@@ -479,6 +520,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     };
 
     const runAutoCollapseForWindowResize = () => {
+      // 同 collapseSidebarIfStillNarrow:窄视口模式下侧面板显隐由二级导航管理。
+      if (window.matchMedia("(max-width: 768px)").matches) {
+        return;
+      }
       const widthPx = readConversationWidthPx();
       if (widthPx === null) {
         return;
@@ -1519,6 +1564,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       <div
         ref={workspaceShellRef}
         data-workspace-shell="true"
+        data-narrow-view={isNarrowViewport ? (isSidebarVisible ? "list" : "detail") : undefined}
         style={workspaceShellSplitStyle}
         className={cn(
           "relative flex h-full min-h-0 w-full overflow-hidden",
@@ -1636,10 +1682,22 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           data-panel=""
           id="content"
           className={cn(
-            "flex min-w-[320px] flex-1 flex-col",
+            "relative flex min-w-[320px] flex-1 flex-col",
             hasDesktopPanelInset ? "p-1 pl-0 pt-0" : "p-0",
           )}
         >
+          {/* 窄视口对话页的返回箭头:回到任务列表页。挂 content 内、以 shell 为定位锚。 */}
+          {isNarrowViewport && !isSidebarVisible ? (
+            <button
+              type="button"
+              aria-label={intl.formatMessage({ id: "sidebar.backToTaskList" })}
+              title={intl.formatMessage({ id: "sidebar.backToTaskList" })}
+              onClick={handleToggleSidebar}
+              className="absolute left-2 top-2 z-30 flex size-9 items-center justify-center rounded-lg border border-border bg-surface/90 text-foreground backdrop-blur"
+            >
+              <ArrowLeftIcon className="size-4" />
+            </button>
+          ) : null}
           {
             hasDesktopPanelInset && (
               <div className="h-1 w-full [app-region:drag]" />

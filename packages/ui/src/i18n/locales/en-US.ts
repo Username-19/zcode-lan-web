@@ -2026,6 +2026,7 @@ const enUS: Record<string, string> = {
   "sidebar.exportLogs.pending": "Exporting logs...",
   "sidebar.exportLogs.error": "Failed to export logs: {error}",
   "sidebar.newTask": "New task",
+  "sidebar.backToTaskList": "Back to task list",
 
   // Settings
   "settings.title": "Settings",

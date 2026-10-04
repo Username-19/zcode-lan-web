@@ -2056,26 +2056,29 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
- * 网页端窄视口适配（本变体新增）
- * 1) ≤768px：左侧栏改为抽屉式覆盖层。原布局是 264px 侧栏 + 320px 主区内联并排，
- *    conversation < 360px 时还会自动收起（WorkspaceShellLayout 自动折叠策略），
- *    手机/窄窗口下表现为"侧栏整个消失"。抽屉化后主区始终占满全宽，侧栏悬浮其上，
- *    显隐沿用左上角既有开关（隐藏态 opacity-0 + pointer-events-none 继续生效）。
- * 2) ≤640px：字号阶梯整体放大 15%，缓解手机端文字过小。
+ * 网页端窄视口适配（本变体新增,对齐官方手机端二级导航）
+ * ≤768px 时整页在"任务列表页"与"对话页"间切换(shell 上 data-narrow-view 驱动):
+ *   list   → 侧栏占满全宽,会话区隐藏;
+ *   detail → 侧栏隐藏,会话区占满全宽(左上角返回箭头回列表,见 WorkspaceShellLayout)。
+ * 点任务/聚焦草稿自动进对话页,返回箭头回列表;窄屏下跳过旧的
+ * "conversation<360px 自动收起侧栏"策略(列表页 conversation 宽度为 0 会误判)。
+ * ≤640px:字号阶梯整体放大 15%,缓解手机端文字过小。
  * ------------------------------------------------------------------------- */
 @media (max-width: 768px) {
-  [data-workspace-shell="true"] > [data-workspace-sidebar-panel="true"] {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 40;
-    width: min(84vw, 320px) !important;
+  [data-workspace-shell="true"][data-narrow-view="list"] > [data-workspace-sidebar-panel="true"] {
+    width: 100% !important;
     max-width: none !important;
-    box-shadow: 12px 0 40px rgba(0, 0, 0, 0.35);
   }
 
-  /* 抽屉模式下侧栏宽度拖拽柄无意义，直接隐藏。 */
+  [data-workspace-shell="true"][data-narrow-view="list"] > [data-panel][id="content"] {
+    display: none;
+  }
+
+  [data-workspace-shell="true"][data-narrow-view="detail"] > [data-workspace-sidebar-panel="true"] {
+    display: none;
+  }
+
+  /* 二级导航模式下侧栏宽度拖拽柄无意义,直接隐藏。 */
   [data-workspace-shell="true"] > [data-testid="resizable-handle"] {
     display: none;
   }

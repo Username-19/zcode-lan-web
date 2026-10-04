@@ -965,6 +965,11 @@ export function applyTaskQueryCacheMutation(params: {
   nextState: TaskListMembershipState;
 }): void {
   useTaskQueryCacheStore.getState().applyTaskMutation(params);
+  // Web 降级路径(useGlobalTaskList 直连 task 服务)不读本 React Query 缓存,
+  // 置顶/归档等成员变更后无法感知;广播一个窗口级事件让降级 hook 重拉。
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new CustomEvent("zcode:task-list-mutation"));
+  }
   if (!params.previousState.archived && params.nextState.archived) {
     notifyTaskLifecycle({
       type: "archived",

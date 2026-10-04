@@ -1900,6 +1900,7 @@ const zhCN: Record<string, string> = {
   "sidebar.exportLogs.pending": "正在导出日志中",
   "sidebar.exportLogs.error": "导出日志失败：{error}",
   "sidebar.newTask": "新建任务",
+  "sidebar.backToTaskList": "返回任务列表",
 
   // 设置页
   "settings.title": "设置",
